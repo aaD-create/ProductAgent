@@ -4,154 +4,223 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Internal Agent Chat</title>
-  <script src="https://cdn.botframework.com/botframework-webchat/latest/webchat.js"></script>
+
+  <!-- IMPORTANT:
+       - Avoid "latest" for production; pin a known working version.
+       - If you still want latest, replace v4. with /latest/
+  -->
+  <script defer src="https://cdn.botframework.com/botframework-webchat/4.16.0/webchat.js"></script>
+
   <style>
-    :root {
+    :root{
       --bg: #0b0f14;
-      --panel: #111827;
-      --panel-2: #0f172a;
-      --text: #e5e7eb;
-      --muted: #9ca3af;
-      --border: rgba(255,255,255,.08);
-      --accent: #60a5fa;
-      --bubble-user: #1f2937;
-      --bubble-bot: #0b1220;
-    }
-    @media (prefers-color-scheme: light) {
-      :root {
-        --bg: #f6f7fb;
-        --panel: #ffffff;
-        --panel-2: #ffffff;
-        --text: #111827;
-        --muted: #6b7280;
-        --border: rgba(17,24,39,.08);
-        --accent: #2563eb;
-        --bubble-user: #e8f0fe;
-        --bubble-bot: #ffffff;
-      }
+      --panel: #0f172a;
+      --panel2:#0b1220;
+      --text:#e5e7eb;
+      --muted:#9ca3af;
+      --border: rgba(255,255,255,.10);
+      --accent:#60a5fa;
+      --user:#1f2937;
+      --bot:#0b1220;
+      --input:#111827;
     }
 
-    html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; }
+    html, body { height:100%; margin:0; background:var(--bg); color:var(--text); font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial; }
+    * { box-sizing: border-box; }
 
-    .shell {
-      height: 100%;
-      display: grid;
-      grid-template-rows: auto 1fr;
-      max-width: 1080px;
+    .app {
+      height:100%;
+      display:flex;
+      flex-direction:column;
+      max-width: 1100px;
       margin: 0 auto;
     }
 
-    header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
+    header{
+      flex: 0 0 auto;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
       padding: 12px 16px;
-      background: linear-gradient(180deg, var(--panel), var(--panel-2));
+      background: linear-gradient(180deg, var(--panel), var(--panel2));
       border-bottom: 1px solid var(--border);
     }
 
-    .title {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
+    .title h1{ margin:0; font-size:14px; }
+    .title p { margin:2px 0 0; font-size:12px; color:var(--muted); }
 
-    .title h1 { font-size: 14px; margin: 0; letter-spacing: .2px; }
-    .title p { font-size: 12px; margin: 0; color: var(--muted); }
-
-    .controls { display: flex; gap: 10px; align-items: center; }
-
-    .btn {
-      background: transparent;
-      border: 1px solid var(--border);
-      color: var(--text);
-      padding: 6px 10px;
-      border-radius: 10px;
-      cursor: pointer;
-      font-size: 12px;
-    }
-    .btn:hover { border-color: rgba(96,165,250,.5); }
-
-    #webchat {
-      height: 100%;
-      background: var(--bg);
+    .right {
+      display:flex;
+      gap:10px;
+      align-items:center;
     }
 
     .status {
       font-size: 12px;
       color: var(--muted);
+      white-space: nowrap;
     }
+
+    .btn {
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text);
+      padding: 6px 10px;
+      border-radius: 10px;
+      cursor:pointer;
+      font-size: 12px;
+    }
+    .btn:hover{ border-color: rgba(96,165,250,.55); }
+
+    /* Chat area */
+    .chat-wrap {
+      flex: 1 1 auto;
+      min-height: 0; /* IMPORTANT for flex children so WebChat can size itself */
+      display:flex;
+      justify-content:center;
+      padding: 16px;
+    }
+
+    /* This is the container WebChat will render into */
+    #webchat {
+      width: 100%;
+      max-width: 900px;         /* ChatGPT-like column width */
+      height: 100%;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;         /* Keeps WebChat visuals inside rounded border */
+      background: var(--bg);
+    }
+
+    /* Error box (if WebChat fails to load/render) */
+    #errorBox {
+      display:none;
+      margin: 16px;
+      padding: 12px 14px;
+      border: 1px solid rgba(239,68,68,.35);
+      background: rgba(239,68,68,.10);
+      color: #fecaca;
+      border-radius: 12px;
+      font-size: 13px;
+      line-height: 1.4;
+      max-width: 900px;
+      align-self: center;
+      width: 100%;
+    }
+
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
   </style>
 </head>
 <body>
-  <div class="shell">
+  <div class="app">
     <header>
       <div class="title">
         <h1>Internal Agent Chat</h1>
         <p>Ask questions — answers come from your Copilot Studio agent + documents</p>
       </div>
-      <div class="controls">
-        <span class="status" id="status">Connecting…</span>
+
+      <div class="right">
+        <span class="status" id="status">Loading chat UI…</span>
         <button class="btn" id="reset">New chat</button>
       </div>
     </header>
 
-    <div id="webchat" role="main"></div>
+    <div id="errorBox"></div>
+
+    <div class="chat-wrap">
+      <div id="webchat" role="main"></div>
+    </div>
   </div>
 
   <script>
+    const statusEl = document.getElementById('status');
+    const errorBox = document.getElementById('errorBox');
+    const webchatEl = document.getElementById('webchat');
+
+    function showError(message, details) {
+      errorBox.style.display = 'block';
+      errorBox.innerHTML = `
+        <b>Chat UI failed to load.</b><br/>
+        ${message}<br/><br/>
+        <b>Details:</b><br/>
+        <code>${(details || '').toString().replace(/</g,'&lt;')}</code>
+        <br/><br/>
+        Try: open DevTools → Console and share the error log.
+      `;
+      statusEl.textContent = 'Error';
+    }
+
     async function getDirectLineToken() {
       const r = await fetch('/api/directline/token', { cache: 'no-store' });
-      if (!r.ok) throw new Error('Failed to acquire token');
+      if (!r.ok) {
+        const t = await r.text();
+        throw new Error(`Token endpoint failed: ${r.status} ${t}`);
+      }
       return r.json();
     }
 
-    function render(token) {
+    function renderWebChatWithToken(token) {
+      if (!window.WebChat || !window.WebChat.renderWebChat) {
+        throw new Error('BotFramework WebChat script not loaded (window.WebChat is missing).');
+      }
+
       const styleOptions = {
         backgroundColor: getComputedStyle(document.documentElement).getPropertyValue('--bg').trim(),
-        bubbleBackground: getComputedStyle(document.documentElement).getPropertyValue('--bubble-bot').trim(),
-        bubbleFromUserBackground: getComputedStyle(document.documentElement).getPropertyValue('--bubble-user').trim(),
-        bubbleBorderRadius: 12,
-        bubbleFromUserBorderRadius: 12,
-        primaryFont: 'system-ui, -apple-system, Segoe UI, Roboto, Arial',
         accent: getComputedStyle(document.documentElement).getPropertyValue('--accent').trim(),
-        subtle: getComputedStyle(document.documentElement).getPropertyValue('--muted').trim(),
-        paddingRegular: 10
+
+        bubbleBackground: getComputedStyle(document.documentElement).getPropertyValue('--bot').trim(),
+        bubbleFromUserBackground: getComputedStyle(document.documentElement).getPropertyValue('--user').trim(),
+        bubbleBorderRadius: 14,
+        bubbleFromUserBorderRadius: 14,
+
+        primaryFont: 'system-ui, -apple-system, Segoe UI, Roboto, Arial',
+
+        // Make sure send box is visible and styled
+        sendBoxBackground: getComputedStyle(document.documentElement).getPropertyValue('--input').trim(),
+        sendBoxTextColor: '#e5e7eb',
+        sendBoxButtonColor: getComputedStyle(document.documentElement).getPropertyValue('--accent').trim(),
+        sendBoxBorderTop: `1px solid ${getComputedStyle(document.documentElement).getPropertyValue('--border').trim()}`,
+        hideUploadButton: true
       };
 
       const directLine = window.WebChat.createDirectLine({ token });
 
       window.WebChat.renderWebChat(
-        {
-          directLine,
-          styleOptions
-        },
-        document.getElementById('webchat')
+        { directLine, styleOptions },
+        webchatEl
       );
 
       return directLine;
     }
 
-    (async function init() {
-      const statusEl = document.getElementById('status');
+    async function startChat() {
       try {
+        statusEl.textContent = 'Connecting to agent…';
+
+        // Wait a moment for webchat.js to load (because it is defer-loaded)
+        const start = Date.now();
+        while ((!window.WebChat || !window.WebChat.renderWebChat) && Date.now() - start < 7000) {
+          await new Promise(r => setTimeout(r, 50));
+        }
+
         const { token } = await getDirectLineToken();
+        window._directLine = renderWebChatWithToken(token);
+
         statusEl.textContent = 'Connected';
-        window._directLine = render(token);
       } catch (e) {
         console.error(e);
-        statusEl.textContent = 'Connection failed';
+        showError('Unable to render chat control.', e.message || e);
       }
+    }
 
-      document.getElementById('reset').addEventListener('click', async () => {
-        // Force a new token (new conversation).
-        document.getElementById('webchat').innerHTML = '';
-        statusEl.textContent = 'Connecting…';
-        const { token } = await getDirectLineToken();
-        statusEl.textContent = 'Connected';
-        window._directLine = render(token);
-      });
-    })();
+    document.getElementById('reset').addEventListener('click', async () => {
+      webchatEl.innerHTML = '';
+      errorBox.style.display = 'none';
+      await startChat();
+    });
+
+    startChat();
   </script>
 </body>
 </html>
+``
