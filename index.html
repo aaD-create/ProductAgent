@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Internal Agent Chat</title>
+  <script src="https://cdn.botframework.com/botframework-webchat/latest/webchat.js"></script>
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --panel: #111827;
+      --panel-2: #0f172a;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --border: rgba(255,255,255,.08);
+      --accent: #60a5fa;
+      --bubble-user: #1f2937;
+      --bubble-bot: #0b1220;
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f6f7fb;
+        --panel: #ffffff;
+        --panel-2: #ffffff;
+        --text: #111827;
+        --muted: #6b7280;
+        --border: rgba(17,24,39,.08);
+        --accent: #2563eb;
+        --bubble-user: #e8f0fe;
+        --bubble-bot: #ffffff;
+      }
+    }
+
+    html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; }
+
+    .shell {
+      height: 100%;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      max-width: 1080px;
+      margin: 0 auto;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: linear-gradient(180deg, var(--panel), var(--panel-2));
+      border-bottom: 1px solid var(--border);
+    }
+
+    .title {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .title h1 { font-size: 14px; margin: 0; letter-spacing: .2px; }
+    .title p { font-size: 12px; margin: 0; color: var(--muted); }
+
+    .controls { display: flex; gap: 10px; align-items: center; }
+
+    .btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 6px 10px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .btn:hover { border-color: rgba(96,165,250,.5); }
+
+    #webchat {
+      height: 100%;
+      background: var(--bg);
+    }
+
+    .status {
+      font-size: 12px;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div class="title">
+        <h1>Internal Agent Chat</h1>
+        <p>Ask questions — answers come from your Copilot Studio agent + documents</p>
+      </div>
+      <div class="controls">
+        <span class="status" id="status">Connecting…</span>
+        <button class="btn" id="reset">New chat</button>
+      </div>
+    </header>
+
+    <div id="webchat" role="main"></div>
+  </div>
+
+  <script>
+    async function getDirectLineToken() {
+      const r = await fetch('/api/directline/token', { cache: 'no-store' });
+      if (!r.ok) throw new Error('Failed to acquire token');
+      return r.json();
+    }
+
+    function render(token) {
+      const styleOptions = {
+        backgroundColor: getComputedStyle(document.documentElement).getPropertyValue('--bg').trim(),
+        bubbleBackground: getComputedStyle(document.documentElement).getPropertyValue('--bubble-bot').trim(),
+        bubbleFromUserBackground: getComputedStyle(document.documentElement).getPropertyValue('--bubble-user').trim(),
+        bubbleBorderRadius: 12,
+        bubbleFromUserBorderRadius: 12,
+        primaryFont: 'system-ui, -apple-system, Segoe UI, Roboto, Arial',
+        accent: getComputedStyle(document.documentElement).getPropertyValue('--accent').trim(),
+        subtle: getComputedStyle(document.documentElement).getPropertyValue('--muted').trim(),
+        paddingRegular: 10
+      };
+
+      const directLine = window.WebChat.createDirectLine({ token });
+
+      window.WebChat.renderWebChat(
+        {
+          directLine,
+          styleOptions
+        },
+        document.getElementById('webchat')
+      );
+
+      return directLine;
+    }
+
+    (async function init() {
+      const statusEl = document.getElementById('status');
+      try {
+        const { token } = await getDirectLineToken();
+        statusEl.textContent = 'Connected';
+        window._directLine = render(token);
+      } catch (e) {
+        console.error(e);
+        statusEl.textContent = 'Connection failed';
+      }
+
+      document.getElementById('reset').addEventListener('click', async () => {
+        // Force a new token (new conversation).
+        document.getElementById('webchat').innerHTML = '';
+        statusEl.textContent = 'Connecting…';
+        const { token } = await getDirectLineToken();
+        statusEl.textContent = 'Connected';
+        window._directLine = render(token);
+      });
+    })();
+  </script>
+</body>
+</html>
