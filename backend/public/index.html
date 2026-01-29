@@ -177,8 +177,10 @@
         primaryFont: 'system-ui, -apple-system, Segoe UI, Roboto, Arial',
 
         // Make sure send box is visible and styled
-        sendBoxBackground: getComputedStyle(document.documentElement).getPropertyValue('--input').trim(),
-        sendBoxTextColor: '#e5e7eb',
+        
+        sendBoxBackground: '#ffffff',
+        sendBoxTextColor: '#111827',
+        sendBoxPlaceholderColor: '#6b7280',
         sendBoxButtonColor: getComputedStyle(document.documentElement).getPropertyValue('--accent').trim(),
         sendBoxBorderTop: `1px solid ${getComputedStyle(document.documentElement).getPropertyValue('--border').trim()}`,
         hideUploadButton: true
